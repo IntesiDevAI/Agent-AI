@@ -1,0 +1,12 @@
+# Project dependencies for the data data extraction application
+PyMuPDF==1.24.0
+pdf2image==1.17.0
+pytesseract==0.3.10
+pyodbc
+fastapi
+uvicorn[standard]
+langchain
+langchain-community
+openai
+python-dotenv
+python-multipart

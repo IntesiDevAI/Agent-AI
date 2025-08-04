@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: fastapi_app
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - tesseract
+
+  tesseract:
+    image: tesseractocr/tesseract
+    container_name: tesseract_ocr
+    volumes:
+      - ./data:/data
