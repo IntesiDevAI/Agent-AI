@@ -13,7 +13,7 @@ DB_CONN_STR = (
 def get_db_conn():
     return pyodbc.connect(DB_CONN_STR)
 
-def data(file_path: str):
+def data(file_path: str, original_filename: str = None):
     with open(file_path, 'rb') as f:
         content = f.read()
 
@@ -24,7 +24,7 @@ def data(file_path: str):
         OUTPUT INSERTED.RecId
         VALUES (?, ?, ?, ?)
     """
-    filename = os.path.basename(file_path)  #controllare il nome del file danilo 04/08
+    filename = original_filename or os.path.basename(file_path)
     now = datetime.utcnow()
     status = 1
 
@@ -32,7 +32,6 @@ def data(file_path: str):
     recid = cursor.fetchone()[0]
     conn.commit()
 
-    # Ottieni la descrizione dello status
     cursor.execute("""
         SELECT ISNULL(s.Description, 'Non Trovato')
         FROM Requests r
@@ -75,35 +74,50 @@ def save_extraction_results(recid: int, text: str, data: dict):
     cursor.close()
     conn.close()
 
-def record_data(file_path: str):
-    with open(file_path, 'rb') as f:
-        content = f.read()
+from typing import Optional
 
+def record_data(
+    file_path: Optional[str],
+    original_filename: Optional[str],
+    user_prompt: Optional[str]
+) -> tuple[int, str]:   # Cambia qui
+    """
+    Inserisce un nuovo record in db. Se 'file_path' è None,
+    inserisce solo il prompt; il campo Data/Nome sarà null/empty.
+    Restituisce (recid, status_description).
+    """
     conn = get_db_conn()
     cursor = conn.cursor()
-    sql = """
-        INSERT INTO Requests (Filename, UploadDate, Data, Status)
-        OUTPUT INSERTED.RecId
-        VALUES (?, ?, ?, ?)
-    """
-    filename = os.path.basename(file_path)
-    now = datetime.utcnow()
-    status = 1
 
-    cursor.execute(sql, filename, now, pyodbc.Binary(content), status)
+    now = datetime.utcnow()
+    status_code = 1  # STATUS = “Uploaded / In Queue”
+
+    filename = original_filename or ""
+    binary_content = None
+    if file_path:
+        with open(file_path, "rb") as f:
+            binary_content = pyodbc.Binary(f.read())
+
+    sql = """
+        INSERT INTO Requests
+          (Filename, UploadDate, Data, Status, User_Prompt)
+        OUTPUT INSERTED.RecId
+        VALUES (?, ?, ?, ?, ?)
+    """
+    cursor.execute(sql, filename, now, binary_content, status_code, user_prompt)
     recid = cursor.fetchone()[0]
     conn.commit()
 
-    # Ottieni la descrizione dello status
     cursor.execute("""
         SELECT ISNULL(s.Description, 'Non Trovato')
         FROM Requests r
         LEFT JOIN Status s ON r.Status = s.Id
         WHERE r.RecId = ?
     """, recid)
-    status = cursor.fetchone()[0] if cursor.description else "Non Trovato"
+    status_desc = cursor.fetchone()[0]
 
     cursor.close()
     conn.close()
+    return recid, status_desc
 
-    return recid, status
+
