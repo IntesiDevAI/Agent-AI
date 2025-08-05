@@ -1,18 +1,27 @@
-import logging
-import os
-import tempfile
-
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Depends, BackgroundTasks
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Depends, BackgroundTasks, Form
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from pydantic import BaseModel
+from starlette.datastructures import FormData
 
+from typing import Optional, Union, Dict, Any
+from json import JSONDecodeError
+import tempfile
+import os
+import logging
+
+# ROUTER & LOGIC IMPORTS
 from document_check import router as document_router
 from pdf_reader import extract_text_from_pdf
 from llm_agent import extract_data_from_text
-
-from db_data import record_data, get_status_by_recid, update_status, save_extraction_results
+from db_data import (
+    record_data,
+    get_status_by_recid,
+    update_status,
+    save_extraction_results
+)
 from data_utils import extract_data_from_file
 
 app = FastAPI(
@@ -29,9 +38,11 @@ security = HTTPBearer()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
 def process_pdf_background(tmp_path: str, recid: int, model: str, provider: str):
@@ -83,7 +94,8 @@ async def upload_pdf(
             tmp_path = tmp.name
 
         # 2. Registra nel database
-        recid, status = record_data(tmp_path)
+        recid, status = record_data(tmp_path, file.filename)
+
 
 
         model: str = "gpt-3.5-turbo" 
@@ -164,3 +176,126 @@ async def extract_data(file: UploadFile = File(...), model: str = "gpt-3.5-turbo
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Errore durante l'elaborazione: {str(e)}")
+    
+
+from typing import Optional
+import os
+import tempfile
+from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, status
+from fastapi.responses import JSONResponse
+from db_data import record_data, save_extraction_results, update_status
+from data_utils import extract_data_from_file
+
+
+
+def _process_pipeline_background_BCK(
+    tmp_path: Optional[str],
+    recid: int,
+    user_prompt: Optional[str],
+    model: str = "gpt-3.5-turbo",
+    provider: str = "openai"
+):
+    """
+    Funzione chiamata in background.
+    Se tmp_path non è None, fa extract_data_from_file e salva i risultati.
+    Altrimenti, si occupa solo di processare il prompt (se rimos so desideri).
+    """
+    try:
+        update_status(recid, 2)  # "In elaborazione"
+        result = None
+
+        if tmp_path:
+            result = extract_data_from_file(tmp_path, model, provider)
+            save_extraction_results(recid, result["text"], result["data"])
+            update_status(recid, 4)  # "Elaborato"
+        else:
+            # Se gestisci LLM solo su prompt, chiamalo qui:
+            # extracted = extract_data_from_text(user_prompt)
+            # save_extraction_results(recid, extracted["text"], extracted["data"])
+            update_status(recid, 4)
+
+    except Exception as e:
+        update_status(recid, 99)  # "Errore"
+        app.logger.error(f"[pipeline-bg] RecId={recid} error: {e}")
+
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
+
+from fastapi import Request, Depends, HTTPException
+from starlette.datastructures import FormData
+from typing import Union
+from json import JSONDecodeError
+# --- [1] Dependency: decodifica JSON o form-data manualmente ---
+async def decode_body(request: Request) -> Union[dict, FormData]:
+    ct: str = request.headers.get("content-type", "")
+    if ct.startswith("application/json"):
+        try:
+            return await request.json()
+        except JSONDecodeError:
+            raise HTTPException(status_code=400, detail="JSON non valido")
+    elif ct.startswith("multipart/form-data") or ct.startswith("application/x-www-form-urlencoded"):
+        try:
+            return await request.form()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Form-data non valido")
+    else:
+        raise HTTPException(status_code=400, detail="Content-Type non supportato")
+
+# --- [2] Task eseguito in background (solo se esiste file) ---
+def _process_pipeline_background(tmp_path: Optional[str], recid: int, user_prompt: Optional[str]):
+    try:
+        update_status(recid, 2)  # "In elaborazione"
+
+        if tmp_path:
+            result = extract_data_from_file(tmp_path, model="gpt-3.5-turbo", provider="openai")
+            save_extraction_results(recid, result["text"], result["data"])
+        
+        update_status(recid, 4)  # "Elaborato"
+    except Exception as e:
+        update_status(recid, 99)  # "Errore"
+        # qui puoi fare log dell'errore se vuoi
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+# --- [3] Endpoint /pipelines: usa decode_body, non definisce file/form nei parametri ---
+@app.post("/pipelines")
+async def run_pipeline(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    file: Optional[UploadFile] = File(None, description="File PDF o immagine (opzionale)"),
+    user_prompt: Optional[str] = Form(None, description="Testo prompt utente (opzionale)"),
+    body: Any = Depends(decode_body),
+):
+    is_form = isinstance(body, FormData)
+
+    uploaded_file = body.get("file") if is_form else None
+    user_prompt_raw = (body.get("user_prompt") or "").strip() if is_form else (body.get("user_prompt") or "").strip()
+    user_prompt = user_prompt_raw if user_prompt_raw else None
+
+    if not uploaded_file and not user_prompt:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Devi fornire almeno un file o un user_prompt.")
+
+    tmp_path: Optional[str] = None
+    recid: Optional[int] = None
+
+    try:
+        if uploaded_file:
+            suffix = os.path.splitext(uploaded_file.filename)[1] or ".pdf"
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                tmp.write(await uploaded_file.read())
+                tmp_path = tmp.name
+            recid, db_status = record_data(tmp_path, uploaded_file.filename, user_prompt)
+        else:
+            recid, db_status = record_data(None, None, user_prompt)
+
+        background_tasks.add_task(_process_pipeline_background, tmp_path, recid, user_prompt)
+        return {"recid": recid, "db_status": db_status}
+
+    except Exception as e:
+        if recid:
+            update_status(recid, 99)
+        raise HTTPException(status_code=500, detail=str(e))
