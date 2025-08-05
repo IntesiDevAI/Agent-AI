@@ -4,10 +4,16 @@ import os
 from datetime import datetime
 
 DB_CONN_STR = (
+    #"DRIVER={ODBC Driver 17 for SQL Server};"
+    #"SERVER=INTESI\\INTESI2022;"
+    #"DATABASE=DB-AI;"
+    #"UID=sa;PWD=Intsupport1!;"
+
     "DRIVER={ODBC Driver 17 for SQL Server};"
-    "SERVER=INTESI\\INTESI2022;"
+    "SERVER=192.168.3.249,1433;"
     "DATABASE=DB-AI;"
-    "UID=sa;PWD=Intsupport1!;"
+    "UID=sa;PWD=Intsupport1;"
+    "TrustServerCertificate=yes;"
 )
 
 def get_db_conn():

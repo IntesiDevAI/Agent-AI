@@ -1,7 +1,7 @@
 from pdf_reader import extract_text_from_pdf
 from llm_agent import extract_data_from_text
 
-def extract_data_from_file(file_path: str, model: str = "gpt-3.5-turbo", provider: str = "openai"):
+def extract_data_from_file(file_path: str, model: str = "gpt-3.5-turbo", provider: str = "openrouter"):
     """
     Esegue OCR e parsing LLM su un file data.
 

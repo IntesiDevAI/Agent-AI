@@ -55,7 +55,7 @@ def process_pdf_background(tmp_path: str, recid: int, model: str, provider: str)
 
     except Exception as e:
         logging.error(f"Errore nel background task per RecId {recid}: {e}")
-        update_status(recid, 99)  # Errore
+        update_status(recid, 97)  # Errore
 
     finally:
         if os.path.exists(tmp_path):
@@ -81,7 +81,7 @@ Il file viene registrato nel database e analizzato **in background** usando OCR 
 async def upload_pdf(
                         #background_tasks: BackgroundTasks,
                         file: UploadFile = File(...)
-                        #, model: str = "gpt-3.5-turbo", provider: str = "openai"
+                        #, model: str = "gpt-3.5-turbo", provider: str = "openai" 
                         ):
     if not file.filename.lower().endswith((".pdf", ".png", ".jpg", ".jpeg")):
         raise HTTPException(status_code=400, detail="Formato non supportato. Usa PDF o immagine.")
@@ -187,40 +187,40 @@ from db_data import record_data, save_extraction_results, update_status
 from data_utils import extract_data_from_file
 
 
-
-def _process_pipeline_background_BCK(
-    tmp_path: Optional[str],
-    recid: int,
-    user_prompt: Optional[str],
-    model: str = "gpt-3.5-turbo",
-    provider: str = "openai"
-):
-    """
-    Funzione chiamata in background.
-    Se tmp_path non è None, fa extract_data_from_file e salva i risultati.
-    Altrimenti, si occupa solo di processare il prompt (se rimos so desideri).
-    """
-    try:
-        update_status(recid, 2)  # "In elaborazione"
-        result = None
-
-        if tmp_path:
-            result = extract_data_from_file(tmp_path, model, provider)
-            save_extraction_results(recid, result["text"], result["data"])
-            update_status(recid, 4)  # "Elaborato"
-        else:
-            # Se gestisci LLM solo su prompt, chiamalo qui:
-            # extracted = extract_data_from_text(user_prompt)
-            # save_extraction_results(recid, extracted["text"], extracted["data"])
-            update_status(recid, 4)
-
-    except Exception as e:
-        update_status(recid, 99)  # "Errore"
-        app.logger.error(f"[pipeline-bg] RecId={recid} error: {e}")
-
-    finally:
-        if tmp_path and os.path.exists(tmp_path):
-            os.remove(tmp_path)
+# Da eliminare prova Danilo
+#def _process_pipeline_background_BCK(
+#    tmp_path: Optional[str],
+#    recid: int,
+#    user_prompt: Optional[str],
+#    model: str = "gpt-3.5-turbo",
+#    provider: str = "openai"
+#):
+#    """
+#    Funzione chiamata in background.
+#    Se tmp_path non è None, fa extract_data_from_file e salva i risultati.
+#    Altrimenti, si occupa solo di processare il prompt (se rimos so desideri).
+#    """
+#    try:
+#        update_status(recid, 2)  # "In elaborazione"
+#        result = None
+#
+#        if tmp_path:
+#            result = extract_data_from_file(tmp_path, model, provider)
+#            save_extraction_results(recid, result["text"], result["data"])
+#            update_status(recid, 4)  # "Elaborato"
+#        else:
+#            # Se gestisci LLM solo su prompt, chiamalo qui:
+#            # extracted = extract_data_from_text(user_prompt)
+#            # save_extraction_results(recid, extracted["text"], extracted["data"])
+#            update_status(recid, 4)
+#
+#    except Exception as e:
+#        update_status(recid, 99)  # "Errore"
+#        app.logger.error(f"[pipeline-bg] RecId={recid} error: {e}")
+#
+#    finally:
+#        if tmp_path and os.path.exists(tmp_path):
+#            os.remove(tmp_path)
 
 
 
@@ -247,6 +247,7 @@ async def decode_body(request: Request) -> Union[dict, FormData]:
 # --- [2] Task eseguito in background (solo se esiste file) ---
 def _process_pipeline_background(tmp_path: Optional[str], recid: int, user_prompt: Optional[str]):
     try:
+        
         update_status(recid, 2)  # "In elaborazione"
 
         if tmp_path:
@@ -255,7 +256,7 @@ def _process_pipeline_background(tmp_path: Optional[str], recid: int, user_promp
         
         update_status(recid, 4)  # "Elaborato"
     except Exception as e:
-        update_status(recid, 99)  # "Errore"
+        update_status(recid, 98)  # "Errore"
         # qui puoi fare log dell'errore se vuoi
     finally:
         if tmp_path and os.path.exists(tmp_path):
