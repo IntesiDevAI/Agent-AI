@@ -293,6 +293,8 @@ async def run_pipeline(
         else:
             recid, db_status = record_data(None, None, user_prompt)
 
+
+        # Chiamata in background per parsing PDF
         background_tasks.add_task(_process_pipeline_background, tmp_path, recid, user_prompt)
         return {"recid": recid, "db_status": db_status}
 

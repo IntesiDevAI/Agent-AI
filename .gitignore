@@ -1,3 +1,18 @@
 venv/
 .env
 dataextract-app.tar
+
+
+# FBechelli
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# VS Code
+.vscode/               # Ignora le configurazioni specifiche di VS Code
+
+# per chiave
+*.json               # Ignora i file JSON che potrebbero contenere chiavi API o configurazioni sensibili

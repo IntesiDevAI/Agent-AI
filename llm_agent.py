@@ -14,12 +14,20 @@ def extract_data_from_text(text: str, model_name: str = "gpt-3.5-turbo", provide
     prompt = PromptTemplate(
         input_variables=["input"],
         template="""
-Agisci come un estrattore di dati altamente preciso da Documenti di Trasporto (data). Riceverai testo estratto da un PDF (anche via OCR). Estrai i seguenti campi:
-- fornitore
-- numero_documento
-- data_documento
-- riferimento_documento_precedente
-- righe (numero_riga, codice_articolo, descrizione, quantità, prezzo)
+Agisci come un estrattore di dati altamente preciso da Documenti di Trasporto (data). 
+Riceverai testo estratto da un PDF (anche via OCR). 
+Aggiungi ad ogni riga estratta il progressivo_riga partendo da 1.
+Il campo riferimento può essere indicato: riga per riga, oppure riportato all'inizio di un gruppo di articoli ed è valido per ognuno di essi finché non viene specificato un nuovo riferimento.
+Il campo codice_articolo potrebbe non essere presente in tutte le righe. Se assente o non leggibile, imposta il valore a null.
+La quantità potrebbe non essere presente in tutte le righe. Se assente o non leggibile, imposta il valore a null.
+Se un campo non è leggibile o assente, imposta il valore a null.
+
+Estrai i seguenti campi:
+
+fornitore
+numero_documento
+data_documento
+riga (progressivo_riga, riferimento , codice_articolo, descrizione, quantità, prezzo)
 
 Se un campo non è leggibile o assente, imposta il valore a null.
 
@@ -28,10 +36,10 @@ Restituisci un JSON strutturato con questa forma:
   "fornitore": "...",
   "numero_documento": "...",
   "data_documento": "...",
-  "riferimento_documento_precedente": "...",
-  "righe": [
+  "riga": [
     {{
-      "numero_riga": "...",
+      "progressivo_riga": "...",
+      "riferimento": "...",
       "codice_articolo": "...",
       "descrizione": "...",
       "quantità": ...,

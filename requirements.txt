@@ -1,4 +1,3 @@
-# Project dependencies for the data data extraction application
 #PyMuPDF==1.24.0
 PyMuPDF>=1.24.0
 pdf2image==1.17.0
@@ -11,3 +10,12 @@ langchain-community
 openai
 python-dotenv
 python-multipart
+
+# FBechelli - Dipendenze Google Cloud Doc AI
+google-cloud-documentai             
+google-cloud-storage    # For Google Cloud Storage operations
+python-dotenv   # For loading environment variables from .env file
+google-auth  # For Google Cloud authentication
+google-auth-oauthlib  # For Google Cloud authentication
+google-api-python-client # For Google Cloud authentication
+google-cloud-core # For Google Cloud core functionalities

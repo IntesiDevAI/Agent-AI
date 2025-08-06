@@ -24,7 +24,7 @@ class DocumentoData(BaseModel):
     cliente: str
     numero_documento: str
     data_documento: str
-    riferimento_documento_precedente: Optional[str]
+    rif: Optional[str]
     righe: List[Riga]
 
 class DocumentoInput(BaseModel):
