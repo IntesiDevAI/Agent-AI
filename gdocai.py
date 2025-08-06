@@ -77,52 +77,6 @@ def extract_text(layout, document):
         text += document.text[start_index:end_index]
     return text.strip()
 
-def rimappa_json_francesca(document_proto):
-    risultato = {
-        "fornitore": "",
-        "numero_documento": "",
-        "data_documento": "",
-        "riga": []
-    }
-
-    # Estrazione entità principali ---
-    if document_proto.entities:
-        for entity in document_proto.entities:
-            name = entity.type_.lower()
-            value = entity.mention_text.strip() if entity.mention_text else ""
-            if "fornitore" in name:
-                risultato["fornitore"] = value
-            elif "numero" in name:
-                risultato["numero_documento"] = value
-            elif "data" in name:
-                risultato["data_documento"] = value
-
-    # Estrazione righe dalla tabella ---
-    for page in document_proto.pages:
-        for table in page.tables:
-            # Estrai intestazioni
-            header = []
-            if table.header_rows:
-                for cell in table.header_rows[0].cells:
-                    header.append(extract_text(cell.layout, document_proto).lower())
-
-            # Estrai righe corpo
-            for row in table.body_rows:
-                values = [extract_text(cell.layout, document_proto) for cell in row.cells]
-                riga_dict = dict(zip(header, values))
-
-                nuova_riga = {
-                    "progressivo_riga": riga_dict.get("progressivo", ""),
-                    "riferimento": riga_dict.get("riferimento", ""),
-                    "codice_articolo": riga_dict.get("codice_articolo", ""),
-                    "descrizione": riga_dict.get("descrizione", ""),
-                    "quantità": float(riga_dict.get("quantità", "0").replace(",", ".") or 0),
-                    "prezzo": float(riga_dict.get("prezzo", "0").replace(",", ".") or 0)
-                }
-
-                risultato["riga"].append(nuova_riga)
-
-    return risultato
 
 
 def rimappa_json(document_proto):
@@ -457,3 +411,5 @@ if __name__ == "__main__":
             else:
                 messagebox.showinfo("Selezione Annullata", "Nessun file JSON selezionato. Operazione annullata.")
                 sys.exit(0)
+
+

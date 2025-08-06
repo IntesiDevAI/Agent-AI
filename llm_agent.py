@@ -1,37 +1,41 @@
-# llm_agent.py
-
 import os
 import json
+import logging
+from json_repair import loads as jr_loads, repair_json as jr_repair
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
-from dotenv import load_dotenv
 from langchain_community.chat_models import ChatOpenAI
+from dotenv import load_dotenv
 
-load_dotenv()  # Carica variabili da .env
+logging.basicConfig(level=logging.INFO)
+load_dotenv()
 
 def extract_data_from_text(text: str, model_name: str = "gpt-3.5-turbo", provider: str = "openai") -> dict:
-    # Prompt per l'estrazione dei dati da data
     prompt = PromptTemplate(
         input_variables=["input"],
         template="""
-Agisci come un estrattore di dati altamente preciso da Documenti di Trasporto (data). 
-Riceverai testo estratto da un PDF (anche via OCR). 
-Aggiungi ad ogni riga estratta il progressivo_riga partendo da 1.
-Il campo riferimento può essere indicato: riga per riga, oppure riportato all'inizio di un gruppo di articoli ed è valido per ognuno di essi finché non viene specificato un nuovo riferimento.
-Il campo codice_articolo potrebbe non essere presente in tutte le righe. Se assente o non leggibile, imposta il valore a null.
-La quantità potrebbe non essere presente in tutte le righe. Se assente o non leggibile, imposta il valore a null.
-Se un campo non è leggibile o assente, imposta il valore a null.
+You are a highly accurate data extractor specialized in Delivery Notes (Documenti di Trasporto - DDT).
+You will receive raw text extracted from a PDF file (possibly OCR). Your task is to extract and structure the information in the exact JSON format shown below.
 
-Estrai i seguenti campi:
+Guidelines:
+- Start the "progressivo_riga" from 1 and increment by 1 for each row.
+- The field "riferimento" may be indicated per row, or once before a group of items. In such case, assume the same value applies to all subsequent rows until a new one appears.
+- The field "codice_articolo" might be missing or illegible: if so, set it to null.
+- The field "quantità" might be missing or illegible: if so, set it to null.
+- If any other field is unreadable or not present, set it to null.
+- All prices must be extracted per row, if available.
 
-fornitore
-numero_documento
-data_documento
-riga (progressivo_riga, riferimento , codice_articolo, descrizione, quantità, prezzo)
+If a value is missing or unreadable, you must write null (no quotes). Do NOT use "...", "N/A", "-", or anything else.
 
-Se un campo non è leggibile o assente, imposta il valore a null.
+Extract the following fields:
+- fornitore
+- numero_documento
+- data_documento
+- riga (progressivo_riga, riferimento, codice_articolo, descrizione, quantità, prezzo)
 
-Restituisci un JSON strutturato con questa forma:
+⚠️ Output only valid JSON in this exact structure (with double quotes and nulls where required). Do not include any explanation or additional text.
+
+JSON structure:
 {{
   "fornitore": "...",
   "numero_documento": "...",
@@ -47,19 +51,14 @@ Restituisci un JSON strutturato con questa forma:
     }}
   ]
 }}
-Non generare spiegazioni, restituisci solo il JSON.
 
-Testo di input:
+Text to process:
 {input}
 """
     )
 
-    # Scelta del provider LLM
     if provider == "openai":
-        llm = ChatOpenAI(
-            model_name=model_name,
-            temperature=0
-        )
+        llm = ChatOpenAI(model_name=model_name, temperature=0)
     elif provider == "openrouter":
         llm = ChatOpenAI(
             model_name=model_name,
@@ -68,14 +67,38 @@ Testo di input:
             openai_api_key=os.getenv("OPENROUTER_API_KEY")
         )
     else:
-        raise ValueError(f"Provider '{provider}' non supportato al momento.")
+        raise ValueError(f"Provider '{provider}' non supportato.")
 
-    # Costruzione della chain e richiesta
     chain = LLMChain(llm=llm, prompt=prompt)
-    response = chain.run({"input": text})
 
-    # Parsing del JSON generato
+    try:
+        response = chain.run({"input": text})
+    except Exception as exc:
+        logging.error("LLM error during run(): %s", exc, exc_info=True)
+        raise RuntimeError(f"Errore chiamata LLM: {exc}")
+
+    logging.info("LLM raw response:\n%s", response)
+
+    # Primo tentativo di parsing
     try:
         return json.loads(response)
+    except json.JSONDecodeError as e:
+        logging.warning("json.loads failed: %s", e)
+
+    # Fallback con json-repair.loads
+    try:
+        repaired = jr_loads(response)
+        logging.info("json-repair.loads succeeded")
+        return repaired
     except Exception as e:
-        raise RuntimeError(f"Errore nel parsing del JSON generato dal modello: {str(e)}")
+        logging.warning("json-repair.loads failed: %s", e)
+
+    # Secondo fallback con json-repair.repair_json
+    try:
+        fixed = jr_repair(response, return_objects=True)
+        logging.info("json-repair.repair_json succeeded")
+        return fixed
+    except Exception as e:
+        logging.error("json-repair.repair_json also failed: %s", e)
+
+    raise RuntimeError("Parsing JSON fallito anche dopo i tentativi di riparazione.")
