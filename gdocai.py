@@ -175,7 +175,7 @@ def process_document(file_path: str):
         with open(output_path, 'w', encoding='utf-8') as json_file:
             json.dump(json.loads(json_output), json_file, indent=2, ensure_ascii=False)
 
-
+        # DFJDFJHDH
         # FBechelli in progress
         # Trasformazione
         #dati_trasformati = rimappa_json(document_proto)
