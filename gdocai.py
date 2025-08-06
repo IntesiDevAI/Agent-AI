@@ -166,6 +166,7 @@ def process_document(file_path: str):
         result = client.process_document(request=request)
         document_proto = result.document
 
+#KDFGKJDKG
         # Salva il JSON su file invece di stamparlo
         json_output = documentai.Document.to_json(document_proto)
         output_filename = f"{os.path.splitext(os.path.basename(file_path))[0]}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
